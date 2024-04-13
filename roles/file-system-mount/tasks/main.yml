@@ -1,0 +1,80 @@
+---
+
+# tasks file for logical volume creation , directory creation, file system format and file mount 
+- name: Ping hosts
+  ping:
+- block:
+    - name: Ping hosts
+      ping:
+    - name: Check if volume group rootvg exists
+      shell:
+        cmd: vgdisplay rootvg
+      register: vg_info
+      ignore_errors: true
+    - name: Create volume group rootvg if not present
+      command:
+        cmd: vgcreate rootvg /dev/sda2
+      when: vg_info.rc != 0
+    - name: Check if logical volumes exist
+      shell:
+        cmd: lvs /dev/rootvg/{{ item.lv }} 2>/dev/null
+      register: lvs_result
+      loop: "{{ logical_volumes }}"
+
+    - name: Create logical volumes if not present
+      lvol:
+        vg: rootvg
+        lv: "{{ item.lv }}"
+        size: "{{ item.size }}"
+        state: present
+      loop: "{{ lvs_result.results | rejectattr('rc', 'defined') | map(attribute='item') | list }}"
+    
+    - name: Check if logical volumes with XFS filesystem formatted
+      shell:
+        cmd: fsck -N /dev/rootvg/{{ item.lv }} | grep -q 'XFS'
+      register: fsck_result
+      failed_when: false
+      ignore_errors: true
+      loop: "{{ logical_volumes }}"
+
+    - name: Format logical volumes with XFS filesystem if not already formatted
+      command:
+        cmd: mkfs.xfs /dev/rootvg/{{ item.lv }}
+      loop: "{{ fsck_result.results | rejectattr('rc', 'defined') | map(attribute='item') | list }}"
+      when: item is defined
+    - name: Check if directories exist
+      stat:
+        path: "{{ item.path }}"
+      register: existing_dirs
+      loop: "{{ directories }}"
+
+    - name: Create directories if not present
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop: "{{ directories }}"
+      when: not (item.path in existing_dirs.results | map(attribute='item.path') | list)
+
+    - name: Check if directories are already mounted
+      shell:
+        cmd: findmnt --noheadings --list --output TARGET | grep -q "{{ item }}"
+      register: mounted_result
+      loop: "{{ mounted_directories }}"
+      become: yes
+
+    - name: Mount directories if not already mounted
+      mount:
+        path: "{{ item }}"
+        src: "/dev/rootvg/{{ item.split('/')[-1] }}"
+        fstype: xfs
+        state: mounted
+      loop: "{{ mounted_result.results | rejectattr('rc', 'defined') | map(attribute='item') | list }}"
+      loop_control:
+        label: "{{ item }}"
+      when: item is defined
+  become: yes
+
+ 

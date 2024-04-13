@@ -1,0 +1,53 @@
+---
+- block:
+    - name: Check if volume group rootvg exists
+      shell:
+        cmd: vgdisplay rootvg
+      register: vg_info
+      ignore_errors: true
+
+    - name: Create volume group rootvg if not present
+      command:
+        cmd: vgcreate rootvg /dev/sda2
+      when: vg_info.rc != 0
+
+    - name: Create logical volumes if not present
+      lvol:
+        vg: rootvg
+        lv: "{{ item.lv }}"
+        size: "{{ item.size }}"
+        state: present
+      loop: "{{ logical_volumes }}"
+      when: not (item.lv in existing_lvs.results | map(attribute='item.lv') | list)
+
+    - name: Format logical volumes with XFS filesystem if not already formatted
+      command:
+        cmd: mkfs.xfs /dev/rootvg/{{ item.lv }}
+      loop: "{{ logical_volumes }}"
+      when: not (item.lv in formatted_lvs.results | map(attribute='item.lv') | list)
+
+    - name: Create user mqm
+      user:
+        name: mqm
+        state: present
+
+    - name: Create directories if not present
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop: "{{ directories }}"
+      when: not (item.path in existing_dirs.results | map(attribute='item.path') | list)
+
+    - name: Mount directories if not already mounted
+      mount:
+        path: "{{ item }}"
+        src: "/dev/rootvg{{ item.split('/')[-1] }}"
+        fstype: xfs
+        state: mounted
+      loop: "{{ mounted_directories }}"
+      when: not (item in mounted_dirs.results | map(attribute='item') | list)
+  become: yes
+

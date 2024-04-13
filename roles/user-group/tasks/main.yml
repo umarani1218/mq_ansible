@@ -1,0 +1,27 @@
+---
+# tasks file for users and groups creation
+
+- block:
+  - name: Ping hosts
+    ping:
+  - name: Create groups
+    group:
+      name: "{{ item.name }}"
+      gid: "{{ item.gid }}"
+      state: present
+    loop: #"{{ groups }}"
+      - { name: "haclient", gid: "189" }
+      - { name: "mqm", gid: "307" }
+  - name: Create users
+    user:
+      name: "{{ item.name }}"
+      uid: "{{ item.uid }}"
+      group: "{{ item.gid }}"  # Use gid instead of group
+      groups: "{{ item.groups }}"
+      state: present
+    loop:
+      - { name: "hacluster", uid: "189", gid: "189", groups: ["haclient"] }
+      - { name: "mqm", uid: "307", gid: "307", groups: ["mqm", "haclient"] }
+  become: yes
+
+

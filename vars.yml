@@ -1,0 +1,41 @@
+---
+groups:
+  - { name: "haclient", gid: "189" }
+  - { name: "mqm", gid: "307" }
+
+users:
+  - name: hacluster
+    uid: '189'
+    gid: '189'
+    groups:
+      - 'haclient'  # Add haclient group
+  - name: mqm
+    uid: '307'
+    gid: '307'
+    groups:
+      - '307'
+      - 'haclient'  # Add haclient group
+
+
+logical_volumes:
+  - { lv: "optmqm", size: "5g" }
+  - { lv: "varmqm", size: "10g" }
+  - { lv: "mqmlog", size: "3g" }
+  - { lv: "mqmerror", size: "7g" }
+  - { lv: "mqmtrace", size: "4g" }
+
+directories:
+  - { path: '/opt/mqm', owner: 'mqm', group: 'mqm', mode: '0755' }
+  - { path: '/var/mqm', owner: 'mqm', group: 'mqm', mode: '0755' }
+  - { path: '/var/mqm/trace', owner: 'mqm', group: 'mqm', mode: '0755' }
+  - { path: '/var/mqm/errors', owner: 'mqm', group: 'mqm', mode: '0755' }
+  - { path: '/var/mqm/log', owner: 'mqm', group: 'mqm', mode: '0755' }
+
+mounted_directories:
+  - '/opt/mqm'
+  - '/var/mqm'
+  - '/var/mqm/trace'
+  - '/var/mqm/errors'
+  - '/var/mqm/log'
+
+
