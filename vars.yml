@@ -1,21 +1,5 @@
 ---
-groups:
-  - { name: "haclient", gid: "189" }
-  - { name: "mqm", gid: "307" }
-
-users:
-  - name: hacluster
-    uid: '189'
-    gid: '189'
-    groups:
-      - 'haclient'  # Add haclient group
-  - name: mqm
-    uid: '307'
-    gid: '307'
-    groups:
-      - '307'
-      - 'haclient'  # Add haclient group
-
+physical_volumes: "dev/sda2"
 
 logical_volumes:
   - { lv: "optmqm", size: "5g" }
