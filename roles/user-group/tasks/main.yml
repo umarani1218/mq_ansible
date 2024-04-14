@@ -2,21 +2,20 @@
 # tasks file for users and groups creation
 
 - block:
-  - name: Ping hosts
-    ping:
-  - name: Create groups
+  - name: Create groups for haclient and mqm if does not exist
     group:
       name: "{{ item.name }}"
       gid: "{{ item.gid }}"
       state: present
-    loop: #"{{ groups }}"
+    loop: 
       - { name: "haclient", gid: "189" }
       - { name: "mqm", gid: "307" }
-  - name: Create users
+      
+  - name: Create users for hacluster and mqm if does not exist
     user:
       name: "{{ item.name }}"
       uid: "{{ item.uid }}"
-      group: "{{ item.gid }}"  # Use gid instead of group
+      group: "{{ item.gid }}"
       groups: "{{ item.groups }}"
       state: present
     loop:
