@@ -1,0 +1,71 @@
+---
+
+# tasks file for logical volume creation , directory creation, file system format and file mount 
+- block:
+    - name: Check if partitions exist
+      shell: "lsblk -n -o NAME | grep '{{ additional_disk | basename }}1$'"
+      register: partition_check
+      changed_when: false
+      ignore_errors: yes
+    - debug:
+        var: partition_check
+
+    - name: Create partitions
+      parted:
+        device: "{{ additional_disk }}"
+        label: gpt
+        state: present
+        part_start: 0%
+        part_end: 100%
+        name: primary
+        number: 1  # Add partition number
+      when: partition_check is failed
+
+
+    - name: Check if logical volumes exist
+      shell: "lvs --noheadings | awk '{ print $1 }' | grep '{{item.lv}}'"
+      loop: "{{ mq_specs }}"
+      register: lv_check
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Create logical volumes
+      lvol:
+        vg: "{{ volume_group }}"
+        lv: "{{ item.lv }}"
+        size: "{{ item.size }}"
+      loop: "{{ mq_specs }}"    
+      when: lv_check is failed
+
+   
+    - name: Format logical volumes
+      filesystem:
+        fstype: xfs
+        dev: "/dev/{{volume_group}}/{{item.lv}}"
+      loop: "{{ mq_specs }}"
+
+    - name: Check if mq_specs exist
+      stat:
+        path: "{{ item.path }}"
+      register: existing_dirs
+      loop: "{{ mq_specs }}"
+
+    - name: Create mq_specs if not present
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop: "{{ mq_specs }}"
+      when: not (item.path in existing_dirs.results | map(attribute='item.path') | list)
+
+    - name: Mount the mq_specs if not mounted
+      mount:
+        path: "{{ item.path }}"
+        src: "/dev/mapper/{{volume_group}}-{{ item.lv}}"
+        fstype: xfs
+        state: mounted
+      loop: "{{ mq_specs }}"
+  become: yes
+ 
