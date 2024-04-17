@@ -6,6 +6,7 @@
   roles:
      - os-disk-partition-resize
      - mq-file-system-mount
+     - additional-disk-partition-file-system-mount
      - jump-file-system-mount
      - user-group
      - reboot

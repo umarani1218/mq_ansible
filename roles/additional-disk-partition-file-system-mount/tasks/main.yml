@@ -1,0 +1,110 @@
+---
+
+# tasks file for logical volume creation , directory creation, file system format and file mount
+- name: Check if marker for successful additional disk file system mount for mq server
+  shell: "grep -i 'successful file system mount for additional disk mq' /tmp/additional_disk_mq_status.txt"
+  register: additional_disk_mq_filesystem_mount_check
+  ignore_errors: yes
+
+- block:
+    - name: Check if partitions exist
+      shell: "lsblk -n -o NAME | grep '{{ additional_disk | basename }}1$'"
+      register: partition_check
+      changed_when: false
+      ignore_errors: yes
+    - debug:
+        var: partition_check
+
+    - name: Create partitions
+      parted:
+        device: "{{ additional_disk }}"
+        label: gpt
+        state: present
+        part_start: 0%
+        part_end: 100%
+        name: primary
+        number: 1  # Add partition number
+      when: partition_check is failed
+    
+    - name: Check if volume groups exist
+      shell: "vgs --noheadings | awk '{ print $1 }' | grep {{ os_disk_volume_group }}"
+      register: vg_check
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Create volume groups
+      lvg:
+        vg: "{{ additional_disk_volume_group }}"
+        pvs: "{{ additional_disk }}1"
+      when: vg_check is failed
+
+
+    - name: Check if physical volumes exist
+      shell: "pvs --noheadings | awk '{ print $1 }' | grep '{{ additional_disk }}1$'"
+      register: pv_check
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Create physical volumes
+      lvg:
+        vg: "{{ additional_disk_volume_group }}"
+        pvs: "{{ additional_disk }}1"
+      when: pv_check is failed
+
+    - name: Check if logical volumes exist
+      shell: "lvs --noheadings | awk '{ print $1 }' | grep '{{item.lv}}'"
+      loop: "{{ additional_disk_specs }}"
+      register: lv_check
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Create logical volumes
+      lvol:
+        vg: "{{ additional_disk_volume_group }}"
+        lv: "{{ item.lv }}"
+        size: "{{ item.size }}"
+      loop: "{{ additional_disk_specs }}"
+      when: lv_check is failed
+    
+    - name: Format logical volumes
+      filesystem:
+        fstype: xfs
+        dev: "/dev/{{ additional_disk_volume_group }}/{{item.lv}}"
+      loop: "{{ additional_disk_specs }}"
+
+    - name: Check if directories exist
+      stat:
+        path: "{{ item.path }}"
+      register: existing_dirs
+      loop: "{{ additional_disk_specs }}"
+
+    - name: Create directories if not present
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop: "{{ additional_disk_specs }}"
+      when: not (item.path in existing_dirs.results | map(attribute='item.path') | list)
+
+    - name: Mount the directories if not mounted
+      mount:
+        path: "{{ item.path }}"
+        src: "/dev/mapper/{{ additional_disk_volume_group }}-{{ item.lv}}"
+        fstype: xfs
+        state: mounted
+      loop: "{{ additional_disk_specs }}"
+    
+    - name: Add marker to indicate successful file system mount for additional disk mq server
+      lineinfile:
+        path: /tmp/additional_disk_mq_status.txt
+        line: "successful file system mount for additional disk mq"
+        create: yes
+
+  become: yes
+  when: additional_disk_mq_filesystem_mount_check is changed and additional_disk_mq_filesystem_mount_check.rc != 0
+
+    
+
+

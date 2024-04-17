@@ -7,26 +7,6 @@
   ignore_errors: yes
 
 - block:
-    - name: Check if partitions exist
-      shell: "lsblk -n -o NAME | grep '{{ additional_disk | basename }}1$'"
-      register: partition_check
-      changed_when: false
-      ignore_errors: yes
-    - debug:
-        var: partition_check
-
-    - name: Create partitions
-      parted:
-        device: "{{ additional_disk }}"
-        label: gpt
-        state: present
-        part_start: 0%
-        part_end: 100%
-        name: primary
-        number: 1  # Add partition number
-      when: partition_check is failed
-
-
     - name: Check if logical volumes exist
       shell: "lvs --noheadings | awk '{ print $1 }' | grep '{{item.lv}}'"
       loop: "{{ jump_specs }}"
@@ -47,13 +27,13 @@
         dev: "/dev/{{volume_group}}/{{item.lv}}"
       loop: "{{ jump_specs }}"
 
-    - name: Check if jump_specs exist
+    - name: Check if directories exist
       stat:
         path: "{{ item.path }}"
       register: existing_dirs
       loop: "{{ jump_specs }}"
 
-    - name: Create jump_specs if not present
+    - name: Create directories if not present
       file:
         path: "{{ item.path }}"
         state: directory
@@ -63,7 +43,7 @@
       loop: "{{ jump_specs }}"
       when: not (item.path in existing_dirs.results | map(attribute='item.path') | list)
 
-    - name: Mount the jump_specs if not mounted
+    - name: Mount the directories if not mounted
       mount:
         path: "{{ item.path }}"
         src: "/dev/mapper/{{volume_group}}-{{ item.lv}}"
@@ -78,5 +58,3 @@
         create: yes
   become: yes
   when: jump_filesystem_mount_check is changed and jump_filesystem_mount_check.rc != 0
-
-    
