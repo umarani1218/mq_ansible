@@ -1,0 +1,17 @@
+---
+# tasks file for reboot
+- block:
+  - name: Reboot the system
+    shell: sleep 5 && init 6
+    async: 1
+    poll: 0
+
+  - name: Wait for SSH to become available
+    wait_for_connection:
+      delay: 60
+      timeout: 300
+
+  - name: Ping hosts after reboot
+    ping:
+
+  become: yes

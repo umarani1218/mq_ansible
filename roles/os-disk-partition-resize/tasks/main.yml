@@ -1,0 +1,49 @@
+---
+#resize the os disk partion
+- block:
+    - name: Run vgdisplay command
+      shell: vgdisplay rootvg
+      register: vgdisplay_output
+      ignore_errors: true
+
+    - name: Check if VG is already fully utilized
+      debug:
+        msg: "Volume Group rootvg is fully utilized"
+      when: "vgdisplay_output.rc != 0"
+
+    - name: Run pvscan shell
+      shell: pvscan
+      register: pvscan_output
+
+    - name: Grow partition if not fully utilized
+      shell: "growpart {{ os_disk_physical_volume | replace('2', '') }} 2"
+      register: growpart_output
+      ignore_errors: yes
+      when: "vgdisplay_output.rc == 0"
+
+    - name: Check if partition is already grown
+      debug:
+        msg: "Partition {{ os_disk_physical_volume }} is already fully grown"
+      when: growpart_output.rc != 0 and "NOCHANGE" in growpart_output.stdout
+
+    - name: Check if partition is already grown
+      shell: "lsblk {{ os_disk_physical_volume }}"
+      register: lsblk_output
+      when: "growpart_output.changed"
+
+    - name: Resize physical volume
+      shell: "pvresize {{ os_disk_physical_volume }}"
+      register: pvresize_output
+      when: "lsblk_output.changed"
+
+    - name: Run pvscan after resizing
+      shell: pvscan
+      register: pvscan_after_resize
+      when: "pvresize_output.changed"
+
+    - name: Display pvscan output after resizing
+      debug:
+        var: pvscan_after_resize.stdout_lines
+      when: "pvscan_after_resize.changed"
+  become: yes
+
