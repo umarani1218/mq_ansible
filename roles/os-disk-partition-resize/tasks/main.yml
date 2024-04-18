@@ -1,5 +1,11 @@
 ---
 #resize the os disk partion
+- name: Check if marker for successful resize for partition
+  shell: "grep -i 'successful resize for partition' /tmp/fs_status.txt"
+  register: resize_check
+  become: yes
+  ignore_errors: yes
+
 - block:
     - name: Run vgdisplay command
       shell: vgdisplay rootvg
@@ -16,7 +22,7 @@
       register: pvscan_output
 
     - name: Grow partition if not fully utilized
-      shell: "growpart {{ os_disk_physical_volume | replace('2', '') }} 2"
+      shell: "growpart {{ os_disk_physical_volume | replace('4', '') }} 4"
       register: growpart_output
       ignore_errors: yes
       when: "vgdisplay_output.rc == 0"
@@ -45,5 +51,12 @@
       debug:
         var: pvscan_after_resize.stdout_lines
       when: "pvscan_after_resize.changed"
+    
+    - name: Add marker to indicate successful resize for partition
+      lineinfile:
+        path: /tmp/fs_status.txt
+        line: "successful resize for partition"
+        create: yes   
   become: yes
+  when: resize_check is changed and resize_check.rc != 0
 

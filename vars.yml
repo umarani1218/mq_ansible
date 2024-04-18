@@ -2,7 +2,7 @@
 additional_disk: "/dev/sdc"
 additional_disk_volume_group: "drbpoolvg"
 
-os_disk_physical_volume: "/dev/sda2"
+os_disk_physical_volume: "/dev/sda4"
 os_disk_volume_group: "rootvg"
 
 
@@ -18,5 +18,8 @@ jump_specs:
   - { lv: "varmqm", size: "10g", path: '/var/mqm', owner: 'mqm', group: 'mqm', mode: '0755' } 
 
 additional_disk_specs:
-  - { lv: "drdbpoollv", size: "200g", path: '/opt/mqm/drdblog', owner: 'mqm', group: 'mqm', mode: '0755' }
+  - { lv: "drdbpoollv", size: "150g"}
+
+lv_extension_threshold:
+  - { lvpath: "tmplv", resize: 13 }  
 

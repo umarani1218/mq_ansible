@@ -2,8 +2,9 @@
 
 # tasks file for logical volume creation , directory creation, file system format and file mount
 - name: Check if marker for successful additional disk file system mount for mq server
-  shell: "grep -i 'successful file system mount for additional disk mq' /tmp/additional_disk_mq_status.txt"
+  shell: "grep -i 'successful file system mount for additional disk mq' /tmp/fs_status.txt"
   register: additional_disk_mq_filesystem_mount_check
+  become: yes
   ignore_errors: yes
 
 - block:
@@ -71,34 +72,10 @@
         fstype: xfs
         dev: "/dev/{{ additional_disk_volume_group }}/{{item.lv}}"
       loop: "{{ additional_disk_specs }}"
-
-    - name: Check if directories exist
-      stat:
-        path: "{{ item.path }}"
-      register: existing_dirs
-      loop: "{{ additional_disk_specs }}"
-
-    - name: Create directories if not present
-      file:
-        path: "{{ item.path }}"
-        state: directory
-        owner: "{{ item.owner }}"
-        group: "{{ item.group }}"
-        mode: "{{ item.mode }}"
-      loop: "{{ additional_disk_specs }}"
-      when: not (item.path in existing_dirs.results | map(attribute='item.path') | list)
-
-    - name: Mount the directories if not mounted
-      mount:
-        path: "{{ item.path }}"
-        src: "/dev/mapper/{{ additional_disk_volume_group }}-{{ item.lv}}"
-        fstype: xfs
-        state: mounted
-      loop: "{{ additional_disk_specs }}"
-    
+  
     - name: Add marker to indicate successful file system mount for additional disk mq server
       lineinfile:
-        path: /tmp/additional_disk_mq_status.txt
+        path: /tmp/fs_status.txt
         line: "successful file system mount for additional disk mq"
         create: yes
 

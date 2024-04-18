@@ -1,6 +1,6 @@
 ---
-- name: Playbook to execute ping role
-  hosts: rhel-db-servers
+- name: Playbook to execute file sytem mount and user group creation
+  hosts: rhel-mq-servers
   vars_files:
      - vars.yml
   roles:

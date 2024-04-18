@@ -2,8 +2,9 @@
 
 # tasks file for logical volume creation , directory creation, file system format and file mount
 - name: Check if marker for successful file system mount for jump server
-  shell: "grep -i 'successful file system mount for jump' /tmp/jump_status.txt"
+  shell: "grep -i 'successful file system mount for jump' /tmp/fs_status.txt"
   register: jump_filesystem_mount_check
+  become: yes
   ignore_errors: yes
 
 - block:
@@ -16,7 +17,7 @@
 
     - name: Create logical volumes
       lvol:
-        vg: "{{ volume_group }}"
+        vg: "{{ os_disk_volume_group }}"
         lv: "{{ item.lv }}"
         size: "{{ item.size }}"
       loop: "{{ jump_specs }}"
@@ -24,7 +25,7 @@
     - name: Format logical volumes
       filesystem:
         fstype: xfs
-        dev: "/dev/{{volume_group}}/{{item.lv}}"
+        dev: "/dev/{{os_disk_volume_group}}/{{item.lv}}"
       loop: "{{ jump_specs }}"
 
     - name: Check if directories exist
@@ -46,15 +47,44 @@
     - name: Mount the directories if not mounted
       mount:
         path: "{{ item.path }}"
-        src: "/dev/mapper/{{volume_group}}-{{ item.lv}}"
+        src: "/dev/mapper/{{os_disk_volume_group}}-{{ item.lv}}"
         fstype: xfs
         state: mounted
       loop: "{{ jump_specs }}"
+    
+    - name: Check if logical volume needs extending
+      shell: "lvdisplay --units g /dev/rootvg/{{ item.lvpath }} | grep 'LV Size' | awk '{ print $3 }'"
+      register: lv_size
+      failed_when: lv_size.rc != 0
+      loop: "{{ lv_extension_threshold }}"
+
+    - name: Debug lv_size
+      debug:
+         var: lv_size
+
+    - block:
+        - name: Extend logical volume if free space is less than {{ item.resize }}G
+          debug:
+            msg: "Extending logical volume by {{ item.resize }}G"
+          loop: "{{ lv_extension_threshold }}"
+          loop_control:
+            index_var: item_index
+
+        - name: Extend logical volume if free space is less than threshold {{ item.resize }} G
+          lvol:
+            vg: rootvg
+            lv: "{{ item.lvpath }}"
+            size: "{{ item.resize }}G"
+          register: lv_extend
+          loop: "{{ lv_extension_threshold }}"
+          loop_control:
+            index_var: item_index
 
     - name: Add marker to indicate successful file system mount for jump server
       lineinfile:
-        path: /tmp/jump_status.txt
+        path: /tmp/fs_status.txt
         line: "successful file system mount for jump"
         create: yes
   become: yes
   when: jump_filesystem_mount_check is changed and jump_filesystem_mount_check.rc != 0
+
